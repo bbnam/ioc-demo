@@ -23,48 +23,43 @@ public class ContextLoader {
     }
 
     public synchronized void load(String scanPackage) {
-        var reflections = new Reflections(scanPackage);
-        var classes = reflections.getTypesAnnotatedWith(Component.class);
-
+        val reflections = new Reflections(scanPackage);
+        Set<Class<?>> classes = reflections.getTypesAnnotatedWith(Component.class);
         initialInstance(classes);
-        for (var entry : nameToInstance.entrySet()) {
-            var instance = entry.getValue();
+        for (Class<?> clazz : classes) {
+            val instance = nameToInstance.get(clazz.getName());
             injectInstance(instance);
         }
         executeRunner();
     }
 
     void executeRunner() {
-        var runner = nameToInstance.values().stream().filter(Runner.class::isInstance).toList();
-
+        val runner = nameToInstance.values().stream().filter(Runner.class::isInstance).toList();
         if (runner.isEmpty()) {
             return;
         }
-
         if (runner.size() > 1) {
-            throw new RuntimeException("Multiple runner instances found");
+            throw new IllegalStateException("There are more than one runner implementations of " + runner.getClass().getName());
         }
-
-        ((Runner) runner.get(0)).run();
+        ((Runner) runner.getFirst()).run();
     }
 
     private void initialInstance(Set<Class<?>> classes) {
         for (Class<?> clazz : classes) {
             try {
-                val c = Class.forName(clazz.getName());
-                val instance = c.getDeclaredConstructor().newInstance();
-                nameToInstance.put(clazz.getName(), instance);
+                val value = clazz.getDeclaredConstructor().newInstance();
+                nameToInstance.put(clazz.getName(), value);
             } catch (Exception e) {
-                System.out.println(e.getMessage());
+                throw new RuntimeException(e);
             }
+
         }
     }
 
     private void injectInstance(Object instance) {
         val fields = instance.getClass().getDeclaredFields();
         Arrays.stream(fields)
-                .filter(field -> Arrays.stream(field.getDeclaredAnnotations())
-                        .anyMatch(a -> a.annotationType() == Autowired.class))
+                .filter(field -> Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType().equals(Autowired.class)))
                 .forEach(field -> {
                     val value = nameToInstance.get(field.getType().getName());
                     field.setAccessible(true);
@@ -73,8 +68,8 @@ public class ContextLoader {
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
-
-                });
+                })
+        ;
     }
 
 }
