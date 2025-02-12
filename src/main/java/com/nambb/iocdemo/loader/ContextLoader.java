@@ -2,6 +2,7 @@ package com.nambb.iocdemo.loader;
 
 import com.nambb.iocdemo.annotation.Autowired;
 import com.nambb.iocdemo.annotation.Component;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.reflections.Reflections;
 
@@ -39,27 +40,25 @@ public class ContextLoader {
             return;
         }
         if (runner.size() > 1) {
-            throw new IllegalStateException("There are more than one runner implementations of " + runner.getClass().getName());
+            throw new IllegalStateException("Multiple runner instances found: " + runner);
         }
+
         ((Runner) runner.getFirst()).run();
+
     }
 
+    @SneakyThrows
     private void initialInstance(Set<Class<?>> classes) {
         for (Class<?> clazz : classes) {
-            try {
-                val value = clazz.getDeclaredConstructor().newInstance();
-                nameToInstance.put(clazz.getName(), value);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
+            val instance = clazz.getDeclaredConstructor().newInstance();
+            nameToInstance.put(clazz.getName(), instance);
         }
     }
 
     private void injectInstance(Object instance) {
         val fields = instance.getClass().getDeclaredFields();
         Arrays.stream(fields)
-                .filter(field -> Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType().equals(Autowired.class)))
+                .filter(field -> Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType() == Autowired.class))
                 .forEach(field -> {
                     val value = nameToInstance.get(field.getType().getName());
                     field.setAccessible(true);
@@ -68,8 +67,7 @@ public class ContextLoader {
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
-                })
-        ;
+                });
     }
 
 }
