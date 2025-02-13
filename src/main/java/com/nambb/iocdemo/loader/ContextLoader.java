@@ -25,10 +25,10 @@ public class ContextLoader {
 
     public synchronized void load(String scanPackage) {
         val reflections = new Reflections(scanPackage);
-        Set<Class<?>> classes = reflections.getTypesAnnotatedWith(Component.class);
+        val classes = reflections.getTypesAnnotatedWith(Component.class);
         initialInstance(classes);
         for (Class<?> clazz : classes) {
-            val instance = nameToInstance.get(clazz.getName());
+            val instance = nameToInstance.get(clazz.getTypeName());
             injectInstance(instance);
         }
         executeRunner();
@@ -42,14 +42,12 @@ public class ContextLoader {
         if (runner.size() > 1) {
             throw new IllegalStateException("Multiple runner instances found: " + runner);
         }
-
         ((Runner) runner.getFirst()).run();
-
     }
 
     @SneakyThrows
     private void initialInstance(Set<Class<?>> classes) {
-        for (Class<?> clazz : classes) {
+        for (val clazz : classes) {
             val instance = clazz.getDeclaredConstructor().newInstance();
             nameToInstance.put(clazz.getName(), instance);
         }
@@ -57,17 +55,17 @@ public class ContextLoader {
 
     private void injectInstance(Object instance) {
         val fields = instance.getClass().getDeclaredFields();
-        Arrays.stream(fields)
-                .filter(field -> Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType() == Autowired.class))
-                .forEach(field -> {
-                    val value = nameToInstance.get(field.getType().getName());
-                    field.setAccessible(true);
-                    try {
-                        field.set(instance, value);
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+        Arrays.stream(fields).filter(field ->
+            Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType() == Autowired.class))
+        .forEach(field -> {
+           val constructor = nameToInstance.get(field.getType().getName());
+           field.setAccessible(true);
+            try {
+                field.set(instance, constructor);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
 }
