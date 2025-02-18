@@ -28,7 +28,7 @@ public class ContextLoader {
         val classes = reflections.getTypesAnnotatedWith(Component.class);
         initialInstance(classes);
         for (Class<?> clazz : classes) {
-            val instance = nameToInstance.get(clazz.getTypeName());
+            val instance = nameToInstance.get(clazz.getName());
             injectInstance(instance);
         }
         executeRunner();
@@ -47,25 +47,24 @@ public class ContextLoader {
 
     @SneakyThrows
     private void initialInstance(Set<Class<?>> classes) {
-        for (val clazz : classes) {
-            val instance = clazz.getDeclaredConstructor().newInstance();
-            nameToInstance.put(clazz.getName(), instance);
+        for (Class<?> clazz : classes) {
+            nameToInstance.put(clazz.getName(), clazz.getDeclaredConstructor().newInstance());
         }
     }
 
     private void injectInstance(Object instance) {
         val fields = instance.getClass().getDeclaredFields();
-        Arrays.stream(fields).filter(field ->
-            Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType() == Autowired.class))
-        .forEach(field -> {
-           val constructor = nameToInstance.get(field.getType().getName());
-           field.setAccessible(true);
-            try {
-                field.set(instance, constructor);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        Arrays.stream(fields)
+                .filter(field -> Arrays.stream(field.getAnnotations()).anyMatch(annotation -> annotation.annotationType().equals(Autowired.class)))
+                .forEach(field -> {
+                    val constructor = nameToInstance.get(field.getType().getName());
+                    field.setAccessible(true);
+                    try {
+                        field.set(instance, constructor);
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
 }
